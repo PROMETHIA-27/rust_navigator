@@ -1,0 +1,5 @@
+- Read cargo.toml for edition and use that
+- Remove (for now, seemingly trustworthy) unwraps and replace with proper error reporting
+- Respond to client capabilities
+- Respond to unknown notifications/requests/responses with errors?
+- Activate on workspace contains cargo.toml as well

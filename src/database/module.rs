@@ -1,0 +1,93 @@
+use line_index::LineIndex;
+use rust_analyzer_syntax::ast::{HasModuleItem, HasName, Item};
+use rust_analyzer_syntax::{AstNode, Parse, SourceFile};
+
+use crate::database::{Database, FileUrl, ModuleInclude};
+
+pub fn scan_file_modules(
+    db: &mut Database,
+    file: &FileUrl,
+    ast: &Parse<SourceFile>,
+    index: &LineIndex,
+) {
+    db.files.get_mut(file).unwrap().modules.clear();
+    collect_file_modules(db, file, ast, index);
+
+    db.files.get_mut(file).unwrap().parent = get_parent_uri(db, file);
+}
+
+fn collect_file_modules(
+    db: &mut Database,
+    file: &FileUrl,
+    ast: &Parse<SourceFile>,
+    index: &LineIndex,
+) {
+    for item in ast.tree().items() {
+        match item {
+            Item::Module(module) => {
+                let name = module.name().unwrap().text_non_mutable().to_string();
+                let range = crate::utils::range(module.syntax().text_range(), index);
+                db.files
+                    .get_mut(file)
+                    .unwrap()
+                    .modules
+                    .push(ModuleInclude { name, range });
+            }
+            _ => (),
+        }
+    }
+}
+
+/// Check if an adjacent file named `mod.rs`, `lib.rs`, or `main.rs`,
+/// or a parent file named after this directory exists,
+/// and if so return its uri. The file will be loaded in the database if returned.
+///
+/// If this file is a `mod.rs` file, then it will check from a directory up.
+fn get_parent_uri(db: &mut Database, file: &FileUrl) -> Option<FileUrl> {
+    let path = file.path();
+    let file_name = path.file_name().unwrap();
+
+    if file_name == "lib.rs" || file_name == "main.rs" {
+        return None;
+    }
+
+    let path = if file_name != "mod.rs" {
+        &path
+    } else {
+        path.parent()?
+    };
+
+    let mod_path = path.with_file_name("mod.rs");
+    if let Some(mod_url) = FileUrl::from_path(&mod_path)
+        && let Some(_) = db.get_file(&mod_url)
+    {
+        return Some(mod_url);
+    }
+
+    let lib_path = path.with_file_name("lib.rs");
+
+    if let Some(lib_url) = FileUrl::from_path(&lib_path)
+        && let Some(_) = db.get_file(&lib_url)
+    {
+        return Some(lib_url);
+    }
+
+    let main_path = path.with_file_name("main.rs");
+
+    if let Some(main_url) = FileUrl::from_path(&main_path)
+        && let Some(_) = db.get_file(&main_url)
+    {
+        return Some(main_url);
+    }
+
+    let parent_dir = path.parent()?;
+    let parent_file = parent_dir.with_extension("rs");
+
+    if let Some(parent_url) = FileUrl::from_path(&parent_file)
+        && let Some(_) = db.get_file(&parent_url)
+    {
+        return Some(parent_url);
+    }
+
+    None
+}

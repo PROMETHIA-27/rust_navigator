@@ -1,0 +1,17 @@
+Features:
+- ~~Add `(pub) mod foo` in parent module with command~~
+- ~~Tree-sitter syntax errors~~
+- Go-to definition
+- Go-to implementation
+- Go-to references
+- Tree-sitter semantic tokens
+- Manual import via ctrl + .
+- List completions
+  - Auto-import
+- Run cargo fmt on save?
+- Show doc comment on hover
+- Show types on hover if possible
+- Report unknown/unimported items
+- Derive macros are assumed to implement a trait of the same name
+- Intern urls/paths to cut down memory use and maybe some amount of computation
+- That silly stack expander to not stack overflow
