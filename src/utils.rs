@@ -1,7 +1,8 @@
-use std::error::Error;
 use std::fmt::Display;
 
 use line_index::{LineCol, LineIndex, TextRange};
+
+use crate::database::Database;
 
 pub fn position(point: LineCol) -> lsp_types::Position {
     lsp_types::Position {
@@ -17,19 +18,26 @@ pub fn range(range: TextRange, index: &LineIndex) -> lsp_types::Range {
     }
 }
 
-pub fn io_error(message: String) -> std::io::Error {
-    std::io::Error::other(SimpleMessage { message })
+pub trait OrLog {
+    type Result;
+    type Error: Display;
+
+    /// Convert the error to a string using the given function and then report the error to the
+    /// LSP client
+    fn or_log(self, db: &Database) -> Option<Self::Result>;
 }
 
-#[derive(Debug)]
-pub struct SimpleMessage {
-    message: String,
-}
+impl<T, E: Display> OrLog for Result<T, E> {
+    type Result = T;
+    type Error = E;
 
-impl Display for SimpleMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.message)
+    fn or_log(self, db: &Database) -> Option<Self::Result> {
+        match self {
+            Ok(value) => Some(value),
+            Err(err) => {
+                db.log_error(&format!("{err}"));
+                None
+            }
+        }
     }
 }
-
-impl Error for SimpleMessage {}

@@ -12,8 +12,10 @@ use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     WorkDoneProgressOptions,
 };
+use snafu::{OptionExt, ResultExt, Whatever};
 
 use crate::database::Database;
+use crate::utils::OrLog;
 
 fn main() {
     let (connection, io_threads) = Connection::stdio();
@@ -32,7 +34,9 @@ fn main() {
         ..Default::default()
     };
 
-    let (rid, params) = connection.initialize_start().unwrap();
+    let (rid, params) = connection
+        .initialize_start()
+        .expect("initialization failed");
     let mut initialize_params =
         serde_json::from_value::<InitializeParams>(params).unwrap_or_default();
     connection
@@ -42,7 +46,7 @@ fn main() {
                 "capabilities": server_capabilities,
             }),
         )
-        .unwrap();
+        .expect("initialization finish failed");
 
     let workspace_folders = initialize_params
         .workspace_folders
@@ -63,7 +67,17 @@ fn main() {
     let workspace_folders = std::mem::take(&mut db.workspace_folders);
 
     for root in &workspace_folders {
-        let path = root.uri.to_file_path().unwrap();
+        let Some(path) = root
+            .uri
+            .to_file_path()
+            .ok()
+            .with_whatever_context::<_, _, Whatever>(|| {
+                format!("failed to convert root URI {} to file path", root.uri)
+            })
+            .or_log(&db)
+        else {
+            continue;
+        };
         if let Err(err) = database::file::find_rust_files(&mut db, &path) {
             db.log_error(&format!("Rust-Navigator ERROR: {err}"));
         }
@@ -73,14 +87,22 @@ fn main() {
 
     let mut shutdown = false;
     loop {
-        let message = db.connection.receiver.recv().unwrap();
+        let Some(message) = db
+            .connection
+            .receiver
+            .recv()
+            .whatever_context::<_, Whatever>("failed to receive message")
+            .or_log(&db)
+        else {
+            continue;
+        };
         match message {
             Message::Request(request) => {
                 shutdown = db.connection.handle_shutdown(&request).unwrap_or_default();
 
                 match &request.method[..] {
                     "textDocument/codeAction" => {
-                        request::text_document::code_action(&mut db, request);
+                        _ = request::text_document::code_action(&mut db, request).or_log(&db);
                     }
                     _ => (),
                 }
@@ -88,13 +110,13 @@ fn main() {
             Message::Response(_response) => todo!(),
             Message::Notification(notification) => match &notification.method[..] {
                 "textDocument/didOpen" => {
-                    notification::text_document::did_open(&mut db, notification)
+                    _ = notification::text_document::did_open(&mut db, notification).or_log(&db);
                 }
                 "textDocument/didChange" => {
-                    notification::text_document::did_change(&mut db, notification)
+                    _ = notification::text_document::did_change(&mut db, notification).or_log(&db);
                 }
                 "textDocument/didClose" => {
-                    notification::text_document::did_close(&mut db, notification)
+                    _ = notification::text_document::did_close(&mut db, notification).or_log(&db);
                 }
                 _ => (),
             },
@@ -105,5 +127,5 @@ fn main() {
         }
     }
 
-    io_threads.join().unwrap();
+    io_threads.join().expect("failed to join IO threads");
 }

@@ -13,6 +13,7 @@ use lsp_server::{Connection, Message, Notification};
 use lsp_types::{InitializeParams, MessageType, Range, Url, WorkspaceFolder};
 use rust_analyzer_syntax::Edition;
 use serde_json::json;
+use snafu::{OptionExt, ResultExt, Whatever};
 
 use crate::database::ast_scan::scan_ast;
 use crate::database::file::{get_file_diagnostics, post_diagnostics};
@@ -24,7 +25,7 @@ use crate::database::module::scan_file_modules;
 /// On windows, the canonicalized path will be a literal path. More on that [here](https://www.fileside.app/blog/2023-03-17_windows-file-paths/)
 ///
 /// Some properties of canonicalized paths:
-/// - No `.` or `..`; these have been resolved
+/// - No `.` or `..`, these have been resolved
 /// - On windows, no `/`, as these have been replaced with `\`
 /// - No repeated consecutive slashes
 /// - No symbolic links, these have been resolved
@@ -40,15 +41,22 @@ use crate::database::module::scan_file_modules;
 pub struct FileUrl(PathBuf, Url);
 
 impl FileUrl {
-    pub fn from_path(path: &Path) -> Option<FileUrl> {
-        let path = path.canonicalize().ok()?;
-        let url = Url::from_file_path(&path).unwrap();
-        Some(FileUrl(path, url))
+    pub fn from_path(path: &Path) -> Result<FileUrl, Whatever> {
+        let path = path
+            .canonicalize()
+            .with_whatever_context(|_| format!("failed to canonicalize path {path:?}"))?;
+        let url = Url::from_file_path(&path).expect("canonicalized file was not a valid file path");
+        Ok(FileUrl(path, url))
     }
 
-    pub fn from_url(url: Url) -> FileUrl {
-        let path = url.to_file_path().unwrap().canonicalize().unwrap();
-        FileUrl(path, url)
+    pub fn from_url(url: Url) -> Result<FileUrl, Whatever> {
+        let path = url
+            .to_file_path()
+            .ok()
+            .with_whatever_context(|| format!("failed to convert URL {url} to a filepath"))?
+            .canonicalize()
+            .with_whatever_context(|_| format!("failed to canonicalize url {url}"))?;
+        Ok(FileUrl(path, url))
     }
 
     pub fn path(&self) -> &Path {
@@ -102,7 +110,7 @@ impl Database {
                     "message": format!("{}: {}", location, message),
                 }),
             }))
-            .unwrap();
+            .expect("failed to send log");
     }
 
     /// Attempt to check a file from the database, and if it's missing, load it from the filesystem

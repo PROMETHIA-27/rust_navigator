@@ -7,8 +7,10 @@ use lsp_server::{Connection, Message, Notification};
 use lsp_types::notification::{Notification as _, PublishDiagnostics};
 use lsp_types::{Diagnostic, DiagnosticSeverity, PublishDiagnosticsParams};
 use rust_analyzer_syntax::{Parse, SourceFile};
+use snafu::{ResultExt, Whatever};
 
 use crate::database::{Database, FileUrl};
+use crate::utils::OrLog;
 
 pub fn get_file_diagnostics(ast: &Parse<SourceFile>, index: &LineIndex) -> Vec<Diagnostic> {
     let errors = ast
@@ -46,13 +48,14 @@ pub fn post_diagnostics(
                 diagnostics,
                 version: Some(version),
             })
-            .unwrap(),
+            .expect("failed to convert PublishDiagnosticParams to json value"),
         }))
-        .unwrap();
+        .expect("failed to push diagnostics");
 }
 
-pub fn find_rust_files(db: &mut Database, root: &Path) -> std::io::Result<()> {
-    let dir = std::fs::read_dir(root)?;
+pub fn find_rust_files(db: &mut Database, root: &Path) -> Result<(), Whatever> {
+    let dir = std::fs::read_dir(root)
+        .with_whatever_context(|_| format!("failed to load path {root:?}"))?;
 
     // Look for markers like `CACHEDIR.TAG` first
     let file_buffer = dir.filter_map(|file| file.ok()).collect::<Vec<DirEntry>>();
@@ -67,22 +70,36 @@ pub fn find_rust_files(db: &mut Database, root: &Path) -> std::io::Result<()> {
 
     for file in file_buffer {
         let file_path = file.path();
-        let ty = file.file_type()?;
+        let Some(ty) = file
+            .file_type()
+            .with_whatever_context::<_, _, Whatever>(|_| {
+                format!("could not get file type for {file_path:?}")
+            })
+            .or_log(db)
+        else {
+            continue;
+        };
 
         if ty.is_dir() {
             if file_path.file_name() == Some(OsStr::new(".git")) {
                 continue;
             }
 
-            find_rust_files(db, &file_path)?;
+            _ = find_rust_files(db, &file_path).or_log(db);
         } else if ty.is_file() {
             if file_path.extension() != Some(OsStr::new("rs")) {
                 continue;
             }
 
-            if let Some(file) = FileUrl::from_path(&file_path) {
-                db.load_file(&file)?;
-            }
+            let Some(file) = FileUrl::from_path(&file_path).or_log(db) else {
+                continue;
+            };
+            _ = db
+                .load_file(&file)
+                .with_whatever_context::<_, _, Whatever>(|_| {
+                    format!("failed to load file {}", file.url())
+                })
+                .or_log(db);
         } else if ty.is_symlink() {
             db.log_error("symlinks aren't supported right now, try again later");
         }
