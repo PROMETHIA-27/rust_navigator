@@ -1,0 +1,57 @@
+use line_index::LineIndex;
+use rust_analyzer_syntax::ast::{HasName, Module, Struct};
+use rust_analyzer_syntax::{AstNode, SyntaxKind, SyntaxNode};
+
+use crate::database::{Database, FileUrl, ItemPath, ModuleInclude, ModulePath, TypeDefData};
+
+pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: SyntaxNode) {
+    db.files.get_mut(file).unwrap().modules.clear();
+
+    match ast.kind() {
+        SyntaxKind::MODULE => {
+            let module = Module::cast(ast.clone()).unwrap();
+            collect_module(db, file, index, module);
+        }
+        SyntaxKind::STRUCT => {
+            let struc = Struct::cast(ast.clone()).unwrap();
+            collect_struct_def(db, file, index, struc);
+        }
+        _ => (),
+    }
+
+    for child in ast.children() {
+        scan_ast(db, file, index, child);
+    }
+}
+
+fn collect_module(db: &mut Database, file: &FileUrl, index: &LineIndex, module: Module) {
+    let name = module.name().unwrap().text_non_mutable().to_string();
+    let range = crate::utils::range(module.syntax().text_range(), index);
+    db.files
+        .get_mut(file)
+        .unwrap()
+        .modules
+        .push(ModuleInclude { name, range });
+}
+
+fn collect_struct_def(db: &mut Database, file: &FileUrl, index: &LineIndex, typedef: Struct) {
+    let name = typedef.name().unwrap().text_non_mutable().to_string();
+    let range = crate::utils::range(typedef.syntax().text_range(), index);
+
+    let item_path = ItemPath {
+        module: ModulePath {
+            crate_: "crate".to_string(),
+            segments: vec![],
+        },
+        name: name.clone(),
+    };
+    let item_data = TypeDefData {
+        file_path: file.clone(),
+        range,
+        name,
+    };
+
+    db.log_info(&format!("Found typedef\n{item_path:?}\n{item_data:?}"));
+
+    db.type_defs.insert(item_path, item_data);
+}

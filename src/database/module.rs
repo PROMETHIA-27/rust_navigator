@@ -1,41 +1,7 @@
-use line_index::LineIndex;
-use rust_analyzer_syntax::ast::{HasModuleItem, HasName, Item};
-use rust_analyzer_syntax::{AstNode, Parse, SourceFile};
+use crate::database::{Database, FileUrl};
 
-use crate::database::{Database, FileUrl, ModuleInclude};
-
-pub fn scan_file_modules(
-    db: &mut Database,
-    file: &FileUrl,
-    ast: &Parse<SourceFile>,
-    index: &LineIndex,
-) {
-    db.files.get_mut(file).unwrap().modules.clear();
-    collect_file_modules(db, file, ast, index);
-
+pub fn scan_file_modules(db: &mut Database, file: &FileUrl) {
     db.files.get_mut(file).unwrap().parent = get_parent_uri(db, file);
-}
-
-fn collect_file_modules(
-    db: &mut Database,
-    file: &FileUrl,
-    ast: &Parse<SourceFile>,
-    index: &LineIndex,
-) {
-    for item in ast.tree().items() {
-        match item {
-            Item::Module(module) => {
-                let name = module.name().unwrap().text_non_mutable().to_string();
-                let range = crate::utils::range(module.syntax().text_range(), index);
-                db.files
-                    .get_mut(file)
-                    .unwrap()
-                    .modules
-                    .push(ModuleInclude { name, range });
-            }
-            _ => (),
-        }
-    }
 }
 
 /// Check if an adjacent file named `mod.rs`, `lib.rs`, or `main.rs`,

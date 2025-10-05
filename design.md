@@ -6,6 +6,8 @@ Features:
 - Go-to references
 - Tree-sitter semantic tokens
 - Manual import via ctrl + .
+  - Import everything!
+- Replace qualified path with use
 - List completions
   - Auto-import
 - Run cargo fmt on save?

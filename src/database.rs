@@ -1,3 +1,4 @@
+pub mod ast_scan;
 pub mod file;
 pub mod module;
 
@@ -13,6 +14,7 @@ use lsp_types::{InitializeParams, MessageType, Range, Url, WorkspaceFolder};
 use rust_analyzer_syntax::Edition;
 use serde_json::json;
 
+use crate::database::ast_scan::scan_ast;
 use crate::database::file::{get_file_diagnostics, post_diagnostics};
 use crate::database::module::scan_file_modules;
 
@@ -29,7 +31,9 @@ use crate::database::module::scan_file_modules;
 /// - No trailing spaces (at least on windows?)
 ///
 /// Some implications for operations on canonicalized paths:
-/// - *Removing* path segments produces a canonicalized path
+/// - *Removing* path segments produces a canonicalized path as long as a trailing slash is left,
+///   otherwise the path could point to a file named the same as a directory segment and end up
+///   hitting a symbolic link
 /// - *Adding* path segments does not; as an added path segment could lead to a symbolic link
 ///   - Likewise with changing path segments
 #[derive(Clone, Debug, Eq)]
@@ -133,7 +137,8 @@ impl Database {
         let diagnostics = get_file_diagnostics(&ast, &line_index);
         post_diagnostics(&self.connection, &file, diagnostics, version);
 
-        scan_file_modules(self, &file, &ast, &line_index);
+        scan_file_modules(self, file);
+        scan_ast(self, file, &line_index, ast.syntax_node());
 
         let Some(file) = self.files.get_mut(file) else {
             self.log_error(&format!("tried to update file {file:?} but it was missing"));
@@ -171,7 +176,7 @@ pub struct ModuleInclude {
     pub range: Range,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ModulePath {
     pub crate_: String,
     pub segments: Vec<String>,
@@ -182,13 +187,15 @@ pub struct ModuleData {
     pub children: Vec<String>,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct ItemPath {
     pub module: ModulePath,
     pub name: String,
 }
 
+#[derive(Debug)]
 pub struct TypeDefData {
-    pub file_path: PathBuf,
+    pub file_path: FileUrl,
+    pub range: Range,
     pub name: String,
 }

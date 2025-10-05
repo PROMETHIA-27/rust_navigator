@@ -68,11 +68,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1"
 
 [[package]]
-name = "edition"
-version = "0.0.0"
-source = "git+https://github.com/rust-lang/rust-analyzer.git?rev=e7d7cb4#e7d7cb415a3cca2b09aae9c6bbe06d129a511cba"
-
-[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -312,18 +307,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
-name = "parser"
-version = "0.0.0"
-source = "git+https://github.com/rust-lang/rust-analyzer.git?rev=e7d7cb4#e7d7cb415a3cca2b09aae9c6bbe06d129a511cba"
-dependencies = [
- "drop_bomb",
- "edition",
- "ra-ap-rustc_lexer",
- "rustc-literal-escaper",
- "tracing",
-]
-
-[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -364,13 +347,66 @@ dependencies = [
 
 [[package]]
 name = "ra-ap-rustc_lexer"
-version = "0.132.0"
+version = "0.123.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "573ad4f5da620e8ba1849d8862866abd7bc765c3d81cb2488c3ecbef33ce2c69"
+checksum = "2b734cfcb577d09877799a22742f1bd398be6c00bc428d9de56d48d11ece5771"
 dependencies = [
  "memchr",
  "unicode-properties",
  "unicode-xid",
+]
+
+[[package]]
+name = "ra_ap_edition"
+version = "0.0.301"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bdc6cbe42c63ca78611bae82bfc8db24864f33dccc813697c5fde43a0907285"
+
+[[package]]
+name = "ra_ap_parser"
+version = "0.0.301"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a3b92b8b147c0826b83e70ad44e3c98e94201fc93e1f09396c43b4d7958c22a"
+dependencies = [
+ "drop_bomb",
+ "ra-ap-rustc_lexer",
+ "ra_ap_edition",
+ "rustc-literal-escaper",
+ "tracing",
+]
+
+[[package]]
+name = "ra_ap_stdx"
+version = "0.0.301"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa770adb32896fcba934b464ac3bd179163ba2b0766e275eed5b4e262e08492b"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-utils",
+ "itertools",
+ "jod-thread",
+ "libc",
+ "miow",
+ "tracing",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
+name = "ra_ap_syntax"
+version = "0.0.301"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e9e1393281ad5c635239d353ed3cfbf28c8d0af03d0c61a3b24b31d1143b17f"
+dependencies = [
+ "either",
+ "itertools",
+ "ra_ap_parser",
+ "ra_ap_stdx",
+ "rowan",
+ "rustc-hash 2.1.1",
+ "rustc-literal-escaper",
+ "smol_str",
+ "tracing",
+ "triomphe",
 ]
 
 [[package]]
@@ -393,8 +429,8 @@ dependencies = [
  "line-index",
  "lsp-server",
  "lsp-types",
+ "ra_ap_syntax",
  "serde_json",
- "syntax",
 ]
 
 [[package]]
@@ -498,21 +534,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
-name = "stdx"
-version = "0.0.0"
-source = "git+https://github.com/rust-lang/rust-analyzer.git?rev=e7d7cb4#e7d7cb415a3cca2b09aae9c6bbe06d129a511cba"
-dependencies = [
- "crossbeam-channel",
- "crossbeam-utils",
- "itertools",
- "jod-thread",
- "libc",
- "miow",
- "tracing",
- "windows-sys 0.60.2",
-]
-
-[[package]]
 name = "syn"
 version = "2.0.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -532,23 +553,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "syntax"
-version = "0.0.0"
-source = "git+https://github.com/rust-lang/rust-analyzer.git?rev=e7d7cb4#e7d7cb415a3cca2b09aae9c6bbe06d129a511cba"
-dependencies = [
- "either",
- "itertools",
- "parser",
- "rowan",
- "rustc-hash 2.1.1",
- "rustc-literal-escaper",
- "smol_str",
- "stdx",
- "tracing",
- "triomphe",
 ]
 
 [[package]]
