@@ -1,20 +1,25 @@
 use line_index::LineIndex;
 use rust_analyzer_syntax::ast::{HasName, Module, Struct};
 use rust_analyzer_syntax::{AstNode, SyntaxKind, SyntaxNode};
+use snafu::{OptionExt, Whatever};
 
 use crate::database::{Database, FileUrl, ItemPath, ModuleInclude, ModulePath, TypeDefData};
 
 pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: SyntaxNode) {
-    db.files.get_mut(file).unwrap().modules.clear();
+    db.files
+        .get_mut(file)
+        .expect("failed to access file in AST scan")
+        .modules
+        .clear();
 
     match ast.kind() {
         SyntaxKind::MODULE => {
-            let module = Module::cast(ast.clone()).unwrap();
-            collect_module(db, file, index, module);
+            let module = Module::cast(ast.clone()).expect("failed to cast module");
+            _ = collect_module(db, file, index, module);
         }
         SyntaxKind::STRUCT => {
-            let struc = Struct::cast(ast.clone()).unwrap();
-            collect_struct_def(db, file, index, struc);
+            let struc = Struct::cast(ast.clone()).expect("failed to cast struct");
+            _ = collect_struct_def(db, file, index, struc);
         }
         _ => (),
     }
@@ -24,18 +29,37 @@ pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: Synta
     }
 }
 
-fn collect_module(db: &mut Database, file: &FileUrl, index: &LineIndex, module: Module) {
-    let name = module.name().unwrap().text_non_mutable().to_string();
+fn collect_module(
+    db: &mut Database,
+    file: &FileUrl,
+    index: &LineIndex,
+    module: Module,
+) -> Result<(), Whatever> {
+    let name = module
+        .name()
+        .whatever_context("module had no name")?
+        .text_non_mutable()
+        .to_string();
     let range = crate::utils::range(module.syntax().text_range(), index);
     db.files
         .get_mut(file)
-        .unwrap()
+        .expect("failed to access file while scanning")
         .modules
         .push(ModuleInclude { name, range });
+    Ok(())
 }
 
-fn collect_struct_def(db: &mut Database, file: &FileUrl, index: &LineIndex, typedef: Struct) {
-    let name = typedef.name().unwrap().text_non_mutable().to_string();
+fn collect_struct_def(
+    db: &mut Database,
+    file: &FileUrl,
+    index: &LineIndex,
+    typedef: Struct,
+) -> Result<(), Whatever> {
+    let name = typedef
+        .name()
+        .whatever_context("struct definition had no name")?
+        .text_non_mutable()
+        .to_string();
     let range = crate::utils::range(typedef.syntax().text_range(), index);
 
     let item_path = ItemPath {
@@ -51,7 +75,7 @@ fn collect_struct_def(db: &mut Database, file: &FileUrl, index: &LineIndex, type
         name,
     };
 
-    db.log_info(&format!("Found typedef\n{item_path:?}\n{item_data:?}"));
-
     db.type_defs.insert(item_path, item_data);
+
+    Ok(())
 }

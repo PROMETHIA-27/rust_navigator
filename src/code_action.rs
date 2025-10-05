@@ -4,21 +4,34 @@ use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, Position, Range, TextEdit,
     WorkspaceEdit,
 };
+use snafu::{OptionExt, ResultExt, Whatever};
 
 use crate::database::{Database, FileUrl};
 
+/// Add `[pub] mod {name};` to parent file
 pub fn add_mod_to_parent(
     db: &mut Database,
     params: &CodeActionParams,
     actions: &mut Vec<CodeActionOrCommand>,
-) -> Option<()> {
-    let file = FileUrl::from_url(params.text_document.uri.clone());
+) -> Result<(), Whatever> {
+    let file = FileUrl::from_url(params.text_document.uri.clone())?;
 
-    let file_name = file.path().file_stem()?;
-    let file_name_str = file_name.to_str().unwrap();
-    db.load_file(&file).ok()?;
-    if let Some(parent_url) = &db.files.get(&file)?.parent {
-        let parent = db.files.get(&parent_url)?;
+    let file_name = file.path().file_stem().expect("`FileUrl` had no filename");
+    let file_name_str = file_name
+        .to_str()
+        .whatever_context("filename was not UTF8")?;
+    db.load_file(&file)
+        .with_whatever_context(|_| format!("failed to load file `{}`", file.url()))?;
+    if let Some(parent_url) = &db
+        .files
+        .get(&file)
+        .expect("successfully loaded file but it was not present in database")
+        .parent
+    {
+        let parent = db
+            .files
+            .get(&parent_url)
+            .expect("found parent URL but the parent file was not present in database");
 
         let last_include_range = parent
             .modules
@@ -46,7 +59,7 @@ pub fn add_mod_to_parent(
         }
     }
 
-    None
+    Ok(())
 }
 
 fn insert_mod_private(
