@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use line_index::LineIndex;
 use lsp_server::{Connection, Message, Notification};
 use lsp_types::{InitializeParams, MessageType, Range, Url, WorkspaceFolder};
-use rust_analyzer_syntax::Edition;
+use rust_analyzer_syntax::{Edition, Parse, SourceFile};
 use serde_json::json;
 use snafu::{OptionExt, ResultExt, Whatever};
 
@@ -49,6 +49,7 @@ impl FileUrl {
         Ok(FileUrl(path, url))
     }
 
+    /// Can fail if the URL was not a `file` url, or failed to canonicalize
     pub fn from_url(url: Url) -> Result<FileUrl, Whatever> {
         let path = url
             .to_file_path()
@@ -156,6 +157,7 @@ impl Database {
 
         file.version = version;
         file.index = line_index;
+        file.ast = ast;
     }
 }
 
@@ -165,6 +167,7 @@ pub struct FileData {
     pub is_open: bool,
     pub modules: Vec<ModuleInclude>,
     pub parent: Option<FileUrl>,
+    pub ast: Parse<SourceFile>,
 }
 
 impl Default for FileData {
@@ -175,6 +178,7 @@ impl Default for FileData {
             is_open: false,
             modules: vec![],
             parent: None,
+            ast: SourceFile::parse("", Edition::Edition2015),
         }
     }
 }

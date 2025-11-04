@@ -11,6 +11,13 @@ pub fn position(point: LineCol) -> lsp_types::Position {
     }
 }
 
+pub fn line_col(position: lsp_types::Position) -> LineCol {
+    LineCol {
+        line: position.line,
+        col: position.character,
+    }
+}
+
 pub fn range(range: TextRange, index: &LineIndex) -> lsp_types::Range {
     lsp_types::Range {
         start: position(index.line_col(range.start())),

@@ -6,7 +6,7 @@ Features:
 - Go-to references
 - Tree-sitter semantic tokens
 - Manual import via ctrl + .
-  - Import everything!
+  - Import every unimported name in the file (but only if they have no collisions)
 - Replace qualified path with use
 - List completions
   - Auto-import

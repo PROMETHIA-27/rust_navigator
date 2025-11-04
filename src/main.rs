@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use lsp_server::{Connection, Message};
 use lsp_types::{
     CodeActionProviderCapability, DiagnosticOptions, DiagnosticServerCapabilities,
-    InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    InitializeParams, OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     WorkDoneProgressOptions,
 };
 use snafu::{OptionExt, ResultExt, Whatever};
@@ -21,7 +21,8 @@ fn main() {
     let (connection, io_threads) = Connection::stdio();
 
     let server_capabilities = ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
+        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        definition_provider: Some(OneOf::Left(true)),
         diagnostic_provider: Some(DiagnosticServerCapabilities::Options(DiagnosticOptions {
             identifier: None,
             inter_file_dependencies: true,
@@ -30,7 +31,7 @@ fn main() {
                 work_done_progress: Some(false),
             },
         })),
-        code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
         ..Default::default()
     };
 
@@ -103,6 +104,9 @@ fn main() {
                 match &request.method[..] {
                     "textDocument/codeAction" => {
                         _ = request::text_document::code_action(&mut db, request).or_log(&db);
+                    }
+                    "textDocument/definition" => {
+                        _ = request::text_document::definition(&mut db, request).or_log(&db);
                     }
                     _ => (),
                 }
