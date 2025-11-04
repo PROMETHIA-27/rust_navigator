@@ -5,12 +5,13 @@ use snafu::{OptionExt, Whatever};
 
 use crate::database::{Database, FileUrl, ItemPath, ModuleInclude, ModulePath, TypeDefData};
 
+/// Recursively calls itself to scan the entire AST node by node and extract information
 pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: SyntaxNode) {
-    db.files
+    let file_def = db
+        .files
         .get_mut(file)
-        .expect("failed to access file in AST scan")
-        .modules
-        .clear();
+        .expect("failed to access file in AST scan");
+    file_def.modules.clear();
 
     match ast.kind() {
         SyntaxKind::MODULE => {
@@ -45,11 +46,11 @@ fn collect_module(
         .text_non_mutable()
         .to_string();
     let range = crate::utils::range(module.syntax().text_range(), index);
-    db.files
+    let file = db
+        .files
         .get_mut(file)
-        .expect("failed to access file while scanning")
-        .modules
-        .push(ModuleInclude { name, range });
+        .expect("failed to access file in AST scan");
+    file.modules.push(ModuleInclude { name, range });
     Ok(())
 }
 
@@ -79,12 +80,18 @@ fn collect_struct_def(
         name,
     };
 
-    if let Some(old) = db.type_defs.insert(item_path, item_data) {
+    if let Some(old) = db.type_defs.insert(item_path.clone(), item_data) {
         db.log_warning(&format!(
             "discarding type def `{}`; conflicting type name encountered",
             old.name
         ));
     }
+
+    let file = db
+        .files
+        .get_mut(file)
+        .expect("failed to access file in AST scan");
+    file.types.push(item_path);
 
     Ok(())
 }
@@ -115,12 +122,18 @@ fn collect_enum_def(
         name,
     };
 
-    if let Some(old) = db.type_defs.insert(item_path, item_data) {
+    if let Some(old) = db.type_defs.insert(item_path.clone(), item_data) {
         db.log_warning(&format!(
             "discarding type def `{}`; conflicting type name encountered",
             old.name
         ));
     }
+
+    let file = db
+        .files
+        .get_mut(file)
+        .expect("failed to access file in AST scan");
+    file.types.push(item_path);
 
     Ok(())
 }

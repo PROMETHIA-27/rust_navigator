@@ -152,17 +152,19 @@ impl Database {
         let diagnostics = get_file_diagnostics(&ast, &line_index);
         post_diagnostics(&self.connection, &file, diagnostics, version);
 
+        let file_data = self.files.get_mut(file).expect("file data missing");
+
+        for type_def in &file_data.types {
+            self.type_defs.remove(type_def);
+        }
+
         scan_file_modules(self, file);
         scan_ast(self, file, &line_index, ast.syntax_node());
 
-        let Some(file) = self.files.get_mut(file) else {
-            self.log_error(&format!("tried to update file {file:?} but it was missing"));
-            return;
-        };
-
-        file.version = version;
-        file.index = line_index;
-        file.ast = ast;
+        let file_data = self.files.get_mut(file).expect("file data missing");
+        file_data.version = version;
+        file_data.index = line_index;
+        file_data.ast = ast;
     }
 }
 
@@ -173,6 +175,8 @@ pub struct FileData {
     pub modules: Vec<ModuleInclude>,
     pub parent: Option<FileUrl>,
     pub ast: Parse<SourceFile>,
+    /// Used to clear old type defs when a file is changed/removed
+    pub types: Vec<ItemPath>,
 }
 
 impl Default for FileData {
@@ -184,6 +188,7 @@ impl Default for FileData {
             modules: vec![],
             parent: None,
             ast: SourceFile::parse("", Edition::Edition2015),
+            types: vec![],
         }
     }
 }
