@@ -1,7 +1,8 @@
 {
   "name": "rust-navigator",
   "displayName": "Rust Navigator",
-  "publisher": "PROMETHIA",
+  "author": "PROMETHIA-27",
+  "publisher": "Promethia-27",
   "description": "A faster, less accurate alternative to Rust-Analyzer",
   "repository": "https://github.com/PROMETHIA-27/rust_navigator",
   "version": "0.0.1",
