@@ -2,6 +2,7 @@
   "name": "rust-navigator",
   "displayName": "Rust Navigator",
   "description": "A faster, less accurate alternative to Rust-Analyzer",
+  "repository": "https://github.com/PROMETHIA-27/rust_navigator",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.104.0"
