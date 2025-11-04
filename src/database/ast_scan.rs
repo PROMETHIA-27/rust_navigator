@@ -1,5 +1,5 @@
 use line_index::LineIndex;
-use rust_analyzer_syntax::ast::{HasName, Module, Struct};
+use rust_analyzer_syntax::ast::{Enum, HasName, Module, Struct};
 use rust_analyzer_syntax::{AstNode, SyntaxKind, SyntaxNode};
 use snafu::{OptionExt, Whatever};
 
@@ -20,6 +20,10 @@ pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: Synta
         SyntaxKind::STRUCT => {
             let struc = Struct::cast(ast.clone()).expect("failed to cast struct");
             _ = collect_struct_def(db, file, index, struc);
+        }
+        SyntaxKind::ENUM => {
+            let enu = Enum::cast(ast.clone()).expect("failed to cast enum");
+            _ = collect_enum_def(db, file, index, enu);
         }
         _ => (),
     }
@@ -75,7 +79,48 @@ fn collect_struct_def(
         name,
     };
 
-    db.type_defs.insert(item_path, item_data);
+    if let Some(old) = db.type_defs.insert(item_path, item_data) {
+        db.log_warning(&format!(
+            "discarding type def `{}`; conflicting type name encountered",
+            old.name
+        ));
+    }
+
+    Ok(())
+}
+
+fn collect_enum_def(
+    db: &mut Database,
+    file: &FileUrl,
+    index: &LineIndex,
+    typedef: Enum,
+) -> Result<(), Whatever> {
+    let name = typedef
+        .name()
+        .whatever_context("enum definition had no name")?
+        .text_non_mutable()
+        .to_string();
+    let range = crate::utils::range(typedef.syntax().text_range(), index);
+
+    let item_path = ItemPath {
+        module: ModulePath {
+            crate_: "crate".to_string(),
+            segments: vec![],
+        },
+        name: name.clone(),
+    };
+    let item_data = TypeDefData {
+        file_path: file.clone(),
+        range,
+        name,
+    };
+
+    if let Some(old) = db.type_defs.insert(item_path, item_data) {
+        db.log_warning(&format!(
+            "discarding type def `{}`; conflicting type name encountered",
+            old.name
+        ));
+    }
 
     Ok(())
 }

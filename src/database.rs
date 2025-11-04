@@ -97,6 +97,11 @@ impl Database {
     }
 
     #[track_caller]
+    pub fn log_warning(&self, message: &str) {
+        self.log_internal(MessageType::WARNING, message, Location::caller());
+    }
+
+    #[track_caller]
     pub fn log_error(&self, message: &str) {
         self.log_internal(MessageType::ERROR, message, Location::caller());
     }
