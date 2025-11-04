@@ -62,7 +62,15 @@ pub fn definition(db: &mut Database, request: Request) -> Result<(), Whatever> {
         .type_defs
         .get(&path)
         .map(|data| lsp_types::Location::new(data.file_path.url().clone(), data.range))
-        .map(|loc| serde_json::to_value(loc).expect("failed to turn location into json value"));
+        .map(|loc| serde_json::to_value(loc).expect("failed to turn location into json value"))
+        .or_else(|| {
+            db.function_defs
+                .get(&path)
+                .map(|data| lsp_types::Location::new(data.file_path.url().clone(), data.range))
+                .map(|loc| {
+                    serde_json::to_value(loc).expect("failed to turn location into json value")
+                })
+        });
 
     let error = if result.is_none() {
         Some(ResponseError {

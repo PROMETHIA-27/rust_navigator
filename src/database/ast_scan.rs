@@ -1,9 +1,11 @@
 use line_index::LineIndex;
-use rust_analyzer_syntax::ast::{Enum, HasName, Module, Struct};
+use rust_analyzer_syntax::ast::{Enum, Fn, HasName, Module, Struct};
 use rust_analyzer_syntax::{AstNode, SyntaxKind, SyntaxNode};
 use snafu::{OptionExt, Whatever};
 
-use crate::database::{Database, FileUrl, ItemPath, ModuleInclude, ModulePath, TypeDefData};
+use crate::database::{
+    Database, FileUrl, FunctionDefData, ItemPath, ModuleInclude, ModulePath, TypeDefData,
+};
 
 /// Recursively calls itself to scan the entire AST node by node and extract information
 pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: SyntaxNode) {
@@ -25,6 +27,10 @@ pub fn scan_ast(db: &mut Database, file: &FileUrl, index: &LineIndex, ast: Synta
         SyntaxKind::ENUM => {
             let enu = Enum::cast(ast.clone()).expect("failed to cast enum");
             _ = collect_enum_def(db, file, index, enu);
+        }
+        SyntaxKind::FN => {
+            let func = Fn::cast(ast.clone()).expect("failed to cast fn");
+            _ = collect_fn_def(db, file, index, func);
         }
         _ => (),
     }
@@ -134,6 +140,48 @@ fn collect_enum_def(
         .get_mut(file)
         .expect("failed to access file in AST scan");
     file.types.push(item_path);
+
+    Ok(())
+}
+
+fn collect_fn_def(
+    db: &mut Database,
+    file: &FileUrl,
+    index: &LineIndex,
+    function_def: Fn,
+) -> Result<(), Whatever> {
+    let name = function_def
+        .name()
+        .whatever_context("function definition had no name")?
+        .text_non_mutable()
+        .to_string();
+    let range = crate::utils::range(function_def.syntax().text_range(), index);
+
+    let item_path = ItemPath {
+        module: ModulePath {
+            crate_: "crate".to_string(),
+            segments: vec![],
+        },
+        name: name.clone(),
+    };
+    let item_data = FunctionDefData {
+        file_path: file.clone(),
+        range,
+        name,
+    };
+
+    if let Some(old) = db.function_defs.insert(item_path.clone(), item_data) {
+        db.log_warning(&format!(
+            "discarding fn def `{}`; conflicting function name encountered",
+            old.name
+        ));
+    }
+
+    let file = db
+        .files
+        .get_mut(file)
+        .expect("failed to access file in AST scan");
+    file.functions.push(item_path);
 
     Ok(())
 }

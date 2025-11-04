@@ -88,6 +88,7 @@ pub struct Database {
     pub files: HashMap<FileUrl, FileData>,
     pub modules: HashMap<ModulePath, ModuleData>,
     pub type_defs: HashMap<ItemPath, TypeDefData>,
+    pub function_defs: HashMap<ItemPath, FunctionDefData>,
 }
 
 impl Database {
@@ -158,6 +159,10 @@ impl Database {
             self.type_defs.remove(type_def);
         }
 
+        for function_def in &file_data.functions {
+            self.function_defs.remove(function_def);
+        }
+
         scan_file_modules(self, file);
         scan_ast(self, file, &line_index, ast.syntax_node());
 
@@ -177,6 +182,8 @@ pub struct FileData {
     pub ast: Parse<SourceFile>,
     /// Used to clear old type defs when a file is changed/removed
     pub types: Vec<ItemPath>,
+    /// Used to clear old function defs when a file is changed/removed
+    pub functions: Vec<ItemPath>,
 }
 
 impl Default for FileData {
@@ -189,6 +196,7 @@ impl Default for FileData {
             parent: None,
             ast: SourceFile::parse("", Edition::Edition2015),
             types: vec![],
+            functions: vec![],
         }
     }
 }
@@ -218,6 +226,13 @@ pub struct ItemPath {
 
 #[derive(Debug)]
 pub struct TypeDefData {
+    pub file_path: FileUrl,
+    pub range: Range,
+    pub name: String,
+}
+
+#[derive(Debug)]
+pub struct FunctionDefData {
     pub file_path: FileUrl,
     pub range: Range,
     pub name: String,

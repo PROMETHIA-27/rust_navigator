@@ -61,6 +61,7 @@ fn main() {
         files: HashMap::default(),
         modules: HashMap::default(),
         type_defs: HashMap::default(),
+        function_defs: HashMap::default(),
     };
 
     db.log_info("Rust-Navigator Loaded");
